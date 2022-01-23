@@ -1,0 +1,47 @@
+version: 0.2
+
+env:
+  variables:
+    DOCKER_BUILDKIT: "1"
+  secrets-manager:
+    DB_HOST: arn:aws:secretsmanager:ap-northeast-1:099994727094:secret:apetamu/master/RDS-lEKhTq:host
+    DB_DATABASE: arn:aws:secretsmanager:ap-northeast-1:099994727094:secret:apetamu/master/RDS-lEKhTq:dbname
+    DB_USERNAME: arn:aws:secretsmanager:ap-northeast-1:099994727094:secret:apetamu/master/RDS-lEKhTq:username
+    DB_PASSWORD: arn:aws:secretsmanager:ap-northeast-1:099994727094:secret:apetamu/master/RDS-lEKhTq:password
+
+phases:
+  pre_build:
+    commands:
+      - aws --version
+      - aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin 099994727094.dkr.ecr.ap-northeast-1.amazonaws.com
+      - REPOSITORY_URI=${AWS_ACCOUNT_ID}.dkr.ecr.ap-northeast-1.amazonaws.com/php-fpm
+      - VENDOR_URI=${AWS_ACCOUNT_ID}.dkr.ecr.ap-northeast-1.amazonaws.com/vendor
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build --target vendor --cache-from $VENDOR_URI:vendor --build-arg BUILDKIT_INLINE_CACHE=1 -t $VENDOR_URI:vendor -f ./prod/php/Dockerfile .
+      - docker build --cache-from $REPOSITORY_URI:latest --cache-from $VENDOR_URI:vendor --build-arg BUILDKIT_INLINE_CACHE=1 -t $REPOSITORY_URI:latest -f ./prod/php/Dockerfile .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+      - docker tag $VENDOR_URI:vendor $VENDOR_URI:$IMAGE_TAG
+      - docker run --rm -d --name php-fpm-migrate -e DB_HOST=${DB_HOST} -e DB_DATABASE=${DB_DATABASE} -e DB_USERNAME=${DB_USERNAME} -e DB_PASSWORD=${DB_PASSWORD} $REPOSITORY_URI:latest 
+      - docker exec php-fpm-migrate php artisan migrate --force
+      - docker stop php-fpm-migrate
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push $VENDOR_URI:vendor
+      - docker push $VENDOR_URI:$IMAGE_TAG
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Writing image definitions file...
+      - echo $REPOSITORY_URI:$IMAGE_TAG 
+      - printf '{"name":"php-fpm","ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDetail.json
+artifacts: 
+    files: 
+      - imageDetail.json
+      - prod/appspec.yaml
+      - prod/taskdef.json

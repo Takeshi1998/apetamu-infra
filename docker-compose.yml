@@ -1,0 +1,65 @@
+version: "3.9"
+
+volumes:
+  mysql-data:
+  redis-data:
+
+services:
+  #admin
+  app:
+    build:
+      context: .
+      dockerfile: ./dev/php/Dockerfile
+    container_name: app-apetamu
+    volumes:
+      - ./laravel:/var/www/laravel
+    depends_on:
+      - db
+    links :
+      - db
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: homestead
+      DB_USERNAME: homestead
+      DB_PASSWORD: secret
+      REDIS_HOST: redis
+
+  web:
+    build:
+      context: .
+      dockerfile: ./dev/nginx/Dockerfile
+    container_name: web-apetamu
+    ports:
+      - 8080:80
+    volumes:
+      - ./laravel/public:/var/www/laravel/public/
+    depends_on:
+      - app
+    links:
+      - app
+  
+
+  db:
+    image: mysql:5.7
+    container_name: db-apetamu
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: homestead
+      MYSQL_USER: homestead
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
+    ports:
+      - "13306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  redis:
+    image: "redis:latest"
+    container_name: redis-apetamu
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - "redis-data:/data"

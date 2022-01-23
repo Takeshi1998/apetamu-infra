@@ -1,0 +1,62 @@
+version: "3.9"
+
+volumes:
+  mysql-data:
+  redis-data:
+  php-fpm:
+
+services:
+  app:
+    image: apex-app-prod
+    container_name: app-prod-apetamu
+    volumes:
+      - php-fpm:/var/run
+    depends_on:
+      - db
+    links :
+      - db
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: homestead
+      DB_USERNAME: homestead
+      DB_PASSWORD: secret
+      REDIS_HOST: redis
+
+  web:
+    build:
+      context: .
+      dockerfile: ./prod/nginx/Dockerfile
+    container_name: web-apetamu-prod
+    ports:
+      - 8080:80
+    volumes:
+      - php-fpm:/var/run
+    depends_on:
+      - app
+    links:
+      - app
+  
+
+  db:
+    image: mysql:5.7
+    container_name: db-apetamu
+    environment:
+      MYSQL_DATABASE: homestead
+      MYSQL_USER: homestead
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  redis:
+    image: "redis:latest"
+    container_name: redis-apetamu
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - "redis-data:/data"

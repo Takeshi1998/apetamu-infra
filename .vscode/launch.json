@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "XDebug on docker", 
+        "type": "php",              
+        "request": "launch", 
+        "port": 9003,               // portはxdebug.iniで設定したportと一緒にする
+        "stopOnEntry": true,   
+        "pathMappings": {
+            "/var/www/laravel": "${workspaceFolder}/laravel"
+          }    
+      }
+    ]
+  }
